@@ -2,17 +2,17 @@
 import scapy.all as scapy
 import argparse
 import requests
-# import ast
+import ast
 import simplekml
 
-print("\nTraceRoute Started *****")
+print "\nTraceRoute Started *****"
 
 parser=argparse.ArgumentParser()
 parser.add_argument("-i","--host",dest="host",help="Give Hostname or IP Address")
 parser.parse_args()
 options=parser.parse_args()
 
-print("Host:",options.host)
+print "Host:",options.host
 
 def traceroute():
 	ip_addr=[]
@@ -23,21 +23,21 @@ def traceroute():
 		try:#if b.dst is not in Packet in rare case
 			if i==1:
 				src_ip=b.dst
-				print("\nSource_IP:%s\n"%src_ip)
+				print "\nSource_IP:%s\n"%src_ip
 		
 		except AttributeError:
 			pass
 					
 		if b is None:
-			print("TTL=%s \t*****Router Drops the packet*****"%i)
+			print "TTL=%s \t*****Router Drops the packet*****"%i
 
 		else:
 			if b.src in ip_addr:
 				dst_ip=b.src
-				print("\nDestination_IP:%s\n"%dst_ip)
+				print "\nDestination_IP:%s\n"%dst_ip
 				break
 
-			print("TTL=%s \tIntermediate_IP=%s"%(i,b.src))
+			print "TTL=%s \tIntermediate_IP=%s"%(i,b.src)
 			ip_addr.append(b.src)
 	return ip_addr
 
@@ -48,15 +48,14 @@ def getlocation():
 	for i in range(len(ipaddr)):
 		#print ipaddr
 		response=requests.get("http://ip-api.com/json/"+ipaddr[i])
-		if b"fail" not in response.content:
-			# response_dict=ast.literal_eval(response.content)
-			response_dict = response.content
+		if "fail" not in response.content:
+			response_dict=ast.literal_eval(response.content)
 			city.append(response_dict['city'])
 			latitude.append(response_dict['lat'])
 			longitude.append(response_dict['lon'])
 			#print response.content
 
-	print("City: \t",city,"\n","Latitude: ",latitude,"\n","Longitude: ",longitude)
+	print "City: \t",city,"\n","Latitude: ",latitude,"\n","Longitude: ",longitude
 	return(city,latitude,longitude)
 
 def createKML(city,longitude,latitude):
@@ -98,20 +97,20 @@ def createKML(city,longitude,latitude):
 	return filename
 
 ipaddr=traceroute()
-print("[+]TraceRoute Done!!!\n")
+print "[+]TraceRoute Done!!!\n"
 #get ip address
 
-print("Getting IP Adress GeoLocation")
+print "Getting IP Adress GeoLocation"
 data=getlocation()
 city=data[0]
 latitude=data[1]
 longitude=data[2]
-print("\n[+]Done!!!\n")
+print "\n[+]Done!!!\n"
 #get data from ip-api the city,latitude,longitude of IP Adresss
 
-print("Creating KML file !!!")
+print "Creating KML file !!!"
 file=createKML(city,longitude,latitude)
-print("[+]Almost Done!!!\n")
+print "[+]Almost Done!!!\n"
 #create KML file to view in google earth app
 
-print("[+]Open "+file+" file in Google-Earth")
+print "[+]Open "+file+" file in Google-Earth"
