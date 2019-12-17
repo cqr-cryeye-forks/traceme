@@ -2,7 +2,7 @@
 import scapy.all as scapy
 import argparse
 import requests
-import ast
+# import ast
 import simplekml
 
 print("\nTraceRoute Started *****")
@@ -49,7 +49,8 @@ def getlocation():
 		#print ipaddr
 		response=requests.get("http://ip-api.com/json/"+ipaddr[i])
 		if b"fail" not in response.content:
-			response_dict=ast.literal_eval(response.content)
+			# response_dict=ast.literal_eval(response.content)
+			response_dict = response.content
 			city.append(response_dict['city'])
 			latitude.append(response_dict['lat'])
 			longitude.append(response_dict['lon'])
