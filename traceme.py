@@ -48,7 +48,7 @@ def getlocation():
 	for i in range(len(ipaddr)):
 		#print ipaddr
 		response=requests.get("http://ip-api.com/json/"+ipaddr[i])
-		if "fail" not in response.content:
+		if b"fail" not in response.content:
 			response_dict=ast.literal_eval(response.content)
 			city.append(response_dict['city'])
 			latitude.append(response_dict['lat'])
