@@ -1,116 +1,127 @@
-#!/usr/bin/python2.7
-import scapy.all as scapy
+#!/usr/bin/python3
+
 import argparse
+import json
+import pathlib
+from typing import Final
+
 import requests
-import ast
 import simplekml
+from scapy.layers.inet import IP, ICMP
+from scapy.sendrecv import sr1
 
-print "\nTraceRoute Started *****"
 
-parser=argparse.ArgumentParser()
-parser.add_argument("-i","--host",dest="host",help="Give Hostname or IP Address")
-parser.parse_args()
-options=parser.parse_args()
+def traceroute(host):
+    ip_addr = []
+    for i in range(1, 50):
+        icmp = IP(dst=host, ttl=i) / ICMP()
+        b = sr1(icmp, timeout=3, verbose=False)
 
-print "Host:",options.host
+        if b is None:
+            print(f"TTL={i} \t*****Router Drops the packet*****")
+        else:
+            if i == 1:
+                print(f"\nSource_IP: {b.src}\n")
 
-def traceroute():
-	ip_addr=[]
-	for i in range(1,50):
-		icmp=scapy.IP(dst=options.host,ttl=i)/scapy.ICMP()
-		b=scapy.sr1(icmp,timeout=3,verbose=False)
+            if b.src in ip_addr:
+                print(f"\nDestination_IP: {b.src}\n")
+                break
 
-		try:#if b.dst is not in Packet in rare case
-			if i==1:
-				src_ip=b.dst
-				print "\nSource_IP:%s\n"%src_ip
-		
-		except AttributeError:
-			pass
-					
-		if b is None:
-			print "TTL=%s \t*****Router Drops the packet*****"%i
+            print(f"TTL={i} \tIntermediate_IP={b.src}")
+            ip_addr.append(b.src)
+    return ip_addr
 
-		else:
-			if b.src in ip_addr:
-				dst_ip=b.src
-				print "\nDestination_IP:%s\n"%dst_ip
-				break
 
-			print "TTL=%s \tIntermediate_IP=%s"%(i,b.src)
-			ip_addr.append(b.src)
-	return ip_addr
+def get_location(ip_addresses):
+    locations = []
+    for ip in ip_addresses:
+        response = requests.get(f"http://ip-api.com/json/{ip}")
+        response_dict = response.json()
 
-def getlocation():
-	city=[]
-	latitude=[]
-	longitude=[]
-	for i in range(len(ipaddr)):
-		#print ipaddr
-		response=requests.get("http://ip-api.com/json/"+ipaddr[i])
-		if "fail" not in response.content:
-			response_dict=ast.literal_eval(response.content)
-			city.append(response_dict['city'])
-			latitude.append(response_dict['lat'])
-			longitude.append(response_dict['lon'])
-			#print response.content
+        if response_dict.get("status") == "fail":
+            print(f"Failed to get location for IP: {ip}")
+            continue
 
-	print "City: \t",city,"\n","Latitude: ",latitude,"\n","Longitude: ",longitude
-	return(city,latitude,longitude)
+        locations.append({
+            "ip": ip,
+            "city": response_dict['city'],
+            "latitude": response_dict['lat'],
+            "longitude": response_dict['lon']
+        })
 
-def createKML(city,longitude,latitude):
+    print("Locations: \t", locations)
+    return locations
 
-	kml = simplekml.Kml(name="TracerouteMap Map", open=1)
-	tour = kml.newgxtour(name="Packet Route")
-	playlist = tour.newgxplaylist()
 
-	#ploting
+def create_kml(host, locations):
+    kml = simplekml.Kml(name="TracerouteMap Map", open=1)
+    tour = kml.newgxtour(name="Packet Route")
+    playlist = tour.newgxplaylist()
 
-	for i in range(len(city)):
-		pnt = kml.newpoint(name=city[i])
-		pnt.coords = [(longitude[i],latitude[i])]
-		pnt.style.labelstyle.color = simplekml.Color.red  # Make the text red
-		pnt.style.labelstyle.scale = 3  # Make the text twice as big
-		pnt.style.iconstyle.icon.href = 'https://cdn2.iconfinder.com/data/icons/social-media-8/512/pointer.png'
-		pnt.style.iconstyle.scale = 2
-		flyto = playlist.newgxflyto(gxduration=7)
-		flyto.camera.longitude = longitude[i]
-		flyto.camera.latitude = latitude[i]
-		wait = playlist.newgxwait(gxduration=3)
+    # Plotting points
+    for loc in locations:
+        pnt = kml.newpoint(name=loc['city'])
+        pnt.coords = [(loc['longitude'], loc['latitude'])]
+        pnt.style.labelstyle.color = simplekml.Color.red  # Make the text red
+        pnt.style.labelstyle.scale = 3  # Make the text twice as big
+        pnt.style.iconstyle.icon.href = 'https://cdn2.iconfinder.com/data/icons/social-media-8/512/pointer.png'
+        pnt.style.iconstyle.scale = 2
+        flyto = playlist.newgxflyto(gxduration=7)
+        flyto.camera.longitude = loc['longitude']
+        flyto.camera.latitude = loc['latitude']
+        wait = playlist.newgxwait(gxduration=3)
 
-	#joining
+    # Joining points with lines
+    for i in range(len(locations) - 1):
+        name = f"{locations[i]['city']} to {locations[i + 1]['city']}"
+        lin = kml.newlinestring(name=name)
+        lin.coords = [(locations[i]['longitude'], locations[i]['latitude']),
+                      (locations[i + 1]['longitude'], locations[i + 1]['latitude'])]
+        lin.style.linestyle.width = 8
+        lin.style.linestyle.color = simplekml.Color.cyan
+        lin.tessellate = 1
+        lin.altitudemode = simplekml.AltitudeMode.clamptoground
 
-	for i in range(len(city)):
-		try:
-			name = city[i] + " to " + city[i+1]
-			lin = kml.newlinestring(name=name)
-			lin.coords=[(longitude[i],latitude[i]), (longitude[i+1],latitude[i+1])]
-			lin.style.linestyle.width = 8
-			lin.style.linestyle.color = simplekml.Color.cyan
-			lin.tessellate = 1
-			lin.altitudemode = simplekml.AltitudeMode.clamptoground
-		except IndexError:
-			pass
+    filename = f"tracemap_of_{host}.kml"
+    kml.save(filename)
+    return filename
 
-		filename="tracemap_of_"+options.host+".kml"
-	kml.save(filename)
-	return filename
 
-ipaddr=traceroute()
-print "[+]TraceRoute Done!!!\n"
-#get ip address
+def save_to_json(host, locations, output_file):
+    data = {
+        "host": host,
+        "locations": locations
+    }
+    with open(output_file, 'w') as jf:
+        json.dump(data, jf, indent=2)
+    print("DATA:\n", data, "\n\n")
+    print(f"Results saved to {output_file}")
 
-print "Getting IP Adress GeoLocation"
-data=getlocation()
-city=data[0]
-latitude=data[1]
-longitude=data[2]
-print "\n[+]Done!!!\n"
-#get data from ip-api the city,latitude,longitude of IP Adresss
 
-print "Creating KML file !!!"
-file=createKML(city,longitude,latitude)
-print "[+]Almost Done!!!\n"
-#create KML file to view in google earth app
+if __name__ == '__main__':
+    print("\nTraceRoute Started *****")
 
-print "[+]Open "+file+" file in Google-Earth"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", help="Give Hostname or IP Address", required=True)
+    parser.add_argument("--output", help="Save result in JSON file", required=False)
+    options = parser.parse_args()
+
+    print("Host:", options.host)
+
+    OUTPUT: Final[pathlib.Path] = pathlib.Path(__file__).parent / options.output
+
+    ip_addresses = traceroute(options.host)
+    print("[+] TraceRoute Done!!!\n")
+
+    print("Getting IP Address GeoLocation")
+    locations = get_location(ip_addresses)
+    print("\n[+] Done!!!\n")
+
+    print("Creating KML file!!!")
+    file = create_kml(options.host, locations)
+    print("[+] Almost Done!!!\n")
+
+    if options.output:
+        save_to_json(options.host, locations, OUTPUT)
+
+    print(f"[+] Open {file} file in Google-Earth")
