@@ -92,6 +92,8 @@ def save_to_json(host, locations, output_file):
         "host": host,
         "locations": locations
     }
+    if locations == []:
+        data = {"Empty": "Nothing found by Traceme"}
     with open(output_file, 'w') as jf:
         json.dump(data, jf, indent=2)
     print("DATA:\n", data, "\n\n")
