@@ -15,7 +15,7 @@ def traceroute(host):
     ip_addr = []
     for i in range(1, 50):
         icmp = IP(dst=host, ttl=i) / ICMP()
-        b = sr1(icmp, timeout=3, verbose=False)
+        b = sr1(icmp, timeout=8, verbose=False)
 
         if b is None:
             print(f"TTL={i} \t*****Router Drops the packet*****")
