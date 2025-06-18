@@ -1,18 +1,15 @@
-# Используем базовый образ Alpine Linux с Python 3.12
-FROM python:3.12-alpine3.19
+FROM python:3.13-alpine3.21 AS builder
 
-# Копируем файлы в контейнер
-COPY . /usr/src/app
-
-# Обновляем систему и устанавливаем необходимые пакеты
+WORKDIR /install
+COPY requirements.txt .
 RUN python -m pip install --upgrade pip && \
-    python -m pip install --no-cache-dir -r /usr/src/app/requirements.txt
+    pip install --no-cache-dir --prefix=/install/deps -r requirements.txt
 
-# Делаем скрипт исполняемым
-RUN chmod +x /usr/src/app/traceme.py
+FROM python:3.13-alpine3.21
 
-# Указываем рабочую директорию
-WORKDIR /usr/src/app
+WORKDIR /app
+COPY --from=builder /install/deps /usr/local
+COPY traceme.py traceme.py
 
-# Запускаем скрипт
-CMD ["python3", "traceme.py", "--host", "8.8.8.8", "--output", "result.json"]
+ENTRYPOINT ["python3", "traceme.py"]
+CMD ["--host", "8.8.8.8", "--output", "result.json"]
